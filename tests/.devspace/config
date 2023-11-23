@@ -1,0 +1,5 @@
+{
+    "image": "node:latest",
+    "dockerfile": "Dockerfile",
+    "postCreateCommand": "npm install",
+}
