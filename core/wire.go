@@ -15,6 +15,8 @@ func initProject(r rdir, p pdir) *Project {
 		newBaseEnv,
 		wire.Bind(new(BaseEnv), new(*BaseEnvImpl)),
 		newViper,
+		newDocker,
+		wire.Bind(new(Docker), new(*DockerAPI)),
 	)
 
 	return &Project{}

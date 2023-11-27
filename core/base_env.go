@@ -15,7 +15,7 @@ const (
 )
 
 type BaseEnv interface {
-	Ensure() error
+	Setup() error
 }
 
 type BaseEnvImpl struct {
@@ -36,7 +36,7 @@ func newBaseEnv(r rdir) *BaseEnvImpl {
 	}
 }
 
-func (e *BaseEnvImpl) Ensure() error {
+func (e *BaseEnvImpl) Setup() error {
 	if err := e.buildDirctory(); err != nil {
 		return fmt.Errorf("failed to create base directory: %w", err)
 	}

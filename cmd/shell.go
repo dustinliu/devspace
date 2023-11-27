@@ -1,11 +1,22 @@
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/dustinliu/devspace/core"
+	"github.com/spf13/cobra"
+)
+
+func init() {
+	rootCmd.AddCommand(shellCmd)
+}
 
 var shellCmd = &cobra.Command{
-	Use:   "devspace shell env",
+	Use:   "shell env",
 	Short: "spawn a shell in dev environment",
-	Run: func(cmd *cobra.Command, args []string) {
-		// Do Stuff Here
+	Run: func(_ *cobra.Command, _ []string) {
+		project, err := core.NewProject()
+		if err != nil {
+			core.Fatal(err)
+		}
+		project.Shell()
 	},
 }

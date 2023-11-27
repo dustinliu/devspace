@@ -14,9 +14,10 @@ const (
 )
 
 // TODO: add root pattern to config
+// TODO: validate config, image and dockerfile conflict
 var (
 	confName    = "config"
-	confType    = "hcl"
+	confType    = "json"
 	confDirName = ".devspace"
 )
 

@@ -31,13 +31,13 @@ func (s *BaseEnvTestSuite) TestEnsure() {
 
 	s.Equal(env.repoDir, s.repoDir)
 	s.Equal(env.binDir, filepath.Join(s.repoDir, "bin"))
-	s.NoError(env.Ensure())
+	s.NoError(env.Setup())
 	s.True(isPathExisting(env.binDir))
 	s.True(isPathExisting(env.nvim))
 }
 
 func TestBaseEnv(t *testing.T) {
-	var r = filepath.Join(os.TempDir(), "devspace")
+	r := filepath.Join(os.TempDir(), "devspace")
 	s := &BaseEnvTestSuite{repoDir: r}
 	suite.Run(t, s)
 }

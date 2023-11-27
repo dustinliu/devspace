@@ -21,5 +21,7 @@ func build(_ *cobra.Command, _ []string) {
 		core.Fatal(err)
 	}
 
-	project.Build()
+	if err := project.Build(); err != nil {
+		core.Fatal(err)
+	}
 }

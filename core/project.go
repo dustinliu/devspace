@@ -1,10 +1,8 @@
 package core
 
 import (
-	"crypto/md5"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -19,6 +17,7 @@ var (
 type Project struct {
 	config  ProjectConfig
 	baseEnv BaseEnv
+	docker  Docker
 
 	projectDir  string
 	projectName string
@@ -44,33 +43,30 @@ func NewProject() (*Project, error) {
 }
 
 func (p *Project) Build() error {
-	if err := p.baseEnv.Ensure(); err != nil {
-		return fmt.Errorf("failed to build base environment: %w", err)
-	}
-
-	sum, err := md5sum(filepath.Join(p.projectDir, confDirName, confName))
+	tag, err := p.imageName()
 	if err != nil {
-		return fmt.Errorf("failed to get md5sum of config file: %w", err)
+		return fmt.Errorf("failed to get tag: %w", err)
 	}
-	tag := p.projectName + "-" + sum
-	Debug("docker image tag: " + tag)
 
-	dockerfile := filepath.Join(p.projectDir, confDirName, p.config.Dockerfile())
-	if err := execCmd("build", "-t", tag, "-f", dockerfile, "."); err != nil {
+	path := filepath.Join(p.projectDir, confDirName)
+	if err := p.docker.BuildImage(tag, p.config.Dockerfile(), path); err != nil {
 		return err
 	}
+
 	return nil
 }
 
-type pdir string
+func (p *Project) Shell() error {
+	image := p.config.Image()
+	return nil
+}
 
-func newProjectInternal(projectDir pdir, config ProjectConfig, baseEnv BaseEnv) *Project {
-	return &Project{
-		config:      config,
-		baseEnv:     baseEnv,
-		projectDir:  string(projectDir),
-		projectName: filepath.Base(string(projectDir)),
+func (p *Project) imageName() (string, error) {
+	sum, err := md5sum(filepath.Join(p.projectDir, confDirName, confName))
+	if err != nil {
+		return "", fmt.Errorf("failed to get md5sum of config file: %w", err)
 	}
+	return p.projectName + "-" + sum + ":nvim", nil
 }
 
 func findProjectRoot(dir string) (string, error) {
@@ -90,17 +86,14 @@ func findProjectRoot(dir string) (string, error) {
 	return "", errors.New("project root not found")
 }
 
-func md5sum(file string) (string, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
+type pdir string
 
-	h := md5.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
+func newProjectInternal(projectDir pdir, config ProjectConfig, baseEnv BaseEnv, docker Docker) *Project {
+	return &Project{
+		config:      config,
+		baseEnv:     baseEnv,
+		projectDir:  string(projectDir),
+		projectName: filepath.Base(string(projectDir)),
+		docker:      docker,
 	}
-
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
