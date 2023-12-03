@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"github.com/dustinliu/devspace/core"
+	"github.com/dustinliu/devspace/logging"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	rootCmd.PersistentFlags().BoolVarP(&core.DebugMode, "debug", "d", false, "debug mode")
+	rootCmd.PersistentFlags().BoolVarP(&logging.DebugMode, "debug", "d", false, "debug mode")
 }
 
 var (
@@ -22,6 +22,6 @@ var (
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		core.Fatal(err)
+		logging.Fatal(err)
 	}
 }

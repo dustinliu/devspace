@@ -4,16 +4,17 @@
 package core
 
 import (
+	"github.com/dustinliu/devspace/env"
 	"github.com/google/wire"
 )
 
-func initProject(r rdir, p pdir) *Project {
+// TODO: clear the dependency graph
+func initProject(p string) *Project {
 	wire.Build(
 		newProjectInternal,
 		newProjectConfig,
 		wire.Bind(new(ProjectConfig), new(*ProjectConfigImpl)),
-		newBaseEnv,
-		wire.Bind(new(BaseEnv), new(*BaseEnvImpl)),
+		env.NewDockerEnv,
 		newViper,
 		newDocker,
 		wire.Bind(new(Docker), new(*DockerAPI)),

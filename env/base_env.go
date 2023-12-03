@@ -1,4 +1,4 @@
-package core
+package env
 
 import (
 	"fmt"
@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/dustinliu/devspace/logging"
 )
 
 const (
@@ -16,9 +18,10 @@ const (
 
 type BaseEnv interface {
 	Setup() error
+	RepoDir() string
 }
 
-type BaseEnvImpl struct {
+type BaseEnvAppImage struct {
 	repoDir string
 	binDir  string
 	nvim    string
@@ -26,22 +29,22 @@ type BaseEnvImpl struct {
 
 type rdir string
 
-func newBaseEnv(r rdir) *BaseEnvImpl {
+func newBaseEnv(r rdir) *BaseEnvAppImage {
 	binDir := filepath.Join(string(r), "bin")
 	nvim := filepath.Join(binDir, nvimExec)
-	return &BaseEnvImpl{
+	return &BaseEnvAppImage{
 		repoDir: string(r),
 		binDir:  binDir,
 		nvim:    nvim,
 	}
 }
 
-func (e *BaseEnvImpl) Setup() error {
+func (e *BaseEnvAppImage) Setup() error {
 	if err := e.buildDirctory(); err != nil {
 		return fmt.Errorf("failed to create base directory: %w", err)
 	}
 
-	if !isPathExisting(e.nvim) {
+	if !IsPathExisting(e.nvim) {
 		if err := e.downloadNeoVim(); err != nil {
 			return fmt.Errorf("failed to download neovim: %w", err)
 		}
@@ -50,14 +53,18 @@ func (e *BaseEnvImpl) Setup() error {
 	return nil
 }
 
-func (e *BaseEnvImpl) buildDirctory() error {
-	if !isPathExisting(e.repoDir) {
+func (e *BaseEnvAppImage) RepoDir() string {
+	return e.repoDir
+}
+
+func (e *BaseEnvAppImage) buildDirctory() error {
+	if !IsPathExisting(e.repoDir) {
 		if err := os.MkdirAll(e.repoDir, 0740); err != nil {
 			return fmt.Errorf("create %s: %w", e.repoDir, err)
 		}
 	}
 
-	if !isPathExisting(e.binDir) {
+	if !IsPathExisting(e.binDir) {
 		if err := os.MkdirAll(e.binDir, 0740); err != nil {
 			return fmt.Errorf("create %s: %w", e.binDir, err)
 		}
@@ -66,9 +73,9 @@ func (e *BaseEnvImpl) buildDirctory() error {
 	return nil
 }
 
-func (e *BaseEnvImpl) downloadNeoVim() error {
+func (e *BaseEnvAppImage) downloadNeoVim() error {
 	ch := make(chan error)
-	Print("Downloading neovim")
+	fmt.Print("Downloading neovim")
 	go download(appImageURL, e.nvim, ch)
 LOOP:
 	for {
@@ -82,7 +89,7 @@ LOOP:
 			}
 			break LOOP
 		default:
-			Print(".")
+			fmt.Print(".")
 			time.Sleep(1 * time.Second)
 		}
 	}
@@ -104,7 +111,7 @@ func download(fullURLFile, dest string, ch chan (error)) {
 		},
 	}
 
-	Debug("Downloading ", fullURLFile)
+	logging.Debug("Downloading ", fullURLFile)
 	resp, err := client.Get(fullURLFile)
 	if err != nil {
 		ch <- err

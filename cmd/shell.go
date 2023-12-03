@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/dustinliu/devspace/core"
+	"github.com/dustinliu/devspace/logging"
 	"github.com/spf13/cobra"
 )
 
@@ -15,8 +16,10 @@ var shellCmd = &cobra.Command{
 	Run: func(_ *cobra.Command, _ []string) {
 		project, err := core.NewProject()
 		if err != nil {
-			core.Fatal(err)
+			logging.Fatal(err)
 		}
-		project.Shell()
+		if err = project.Shell(); err != nil {
+			logging.Fatal(err)
+		}
 	},
 }

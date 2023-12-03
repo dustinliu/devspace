@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/adrg/xdg"
+	"github.com/dustinliu/devspace/env"
+	"github.com/dustinliu/devspace/logging"
+	homedir "github.com/mitchellh/go-homedir"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -15,12 +18,13 @@ var (
 )
 
 type Project struct {
-	config  ProjectConfig
-	baseEnv BaseEnv
-	docker  Docker
+	config    ProjectConfig
+	dockerEnv *env.DockerEnv
+	docker    Docker
 
-	projectDir  string
-	projectName string
+	projectDir     string
+	projectConfDir string
+	projectName    string
 }
 
 func NewProject() (*Project, error) {
@@ -34,39 +38,118 @@ func NewProject() (*Project, error) {
 		return nil, fmt.Errorf("failed to get project directory: %w", err)
 	}
 
-	if !isPathExisting(filepath.Join(projectDir, confDirName)) {
+	if !env.IsPathExisting(filepath.Join(projectDir, env.SpaceName)) {
 		return nil, errors.New(".devspace directory not found")
 	}
 
-	repoDir := filepath.Join(xdg.Home, confDirName)
-	return initProject(rdir(repoDir), pdir(projectDir)), nil
+	// repoDir := filepath.Join(xdg.Home, confDirName)
+	return initProject(projectDir), nil
 }
 
 func (p *Project) Build() error {
-	tag, err := p.imageName()
-	if err != nil {
-		return fmt.Errorf("failed to get tag: %w", err)
-	}
+	tag := p.imageName()
 
-	path := filepath.Join(p.projectDir, confDirName)
-	if err := p.docker.BuildImage(tag, p.config.Dockerfile(), path); err != nil {
+	if err := p.docker.BuildImage(tag, p.config.Dockerfile(), p.projectConfDir); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+// TODO: deal with both image and dockerfile
 func (p *Project) Shell() error {
-	image := p.config.Image()
+	container, err := p.findContainer()
+	if err != nil {
+		return fmt.Errorf("failed to find container: %w", err)
+	}
+	if container != "" {
+		exec_opt := ExecOptions{
+			Fork:    false,
+			Tty:     true,
+			workDir: filepath.Join(p.dockerEnv.WorkSpace(), p.projectName),
+		}
+		if err := p.docker.Exec(container, []string{p.config.Shell()}, exec_opt); err != nil {
+			return fmt.Errorf("failed to attach to container: %w", err)
+		}
+	}
+
+	// if container not exists, create one
+	dotfiles, err := homedir.Expand(p.config.Dotfiles())
+	if err != nil {
+		return fmt.Errorf("failed to expand dotfiles path: %w", err)
+	}
+	opt := RunOptions{
+		Fork:    true,
+		Detach:  true,
+		Command: []string{"/bin/sleep", "infinity"},
+		Env: map[string]string{
+			"DEVSPACE":          "true",
+			"DEVSPACE_SHARE":    p.dockerEnv.ShareSpace(),
+			"DEVSPACE_DOTFILES": p.dockerEnv.DotfileDir(),
+		},
+		Mount: map[string]string{},
+	}
+	if p.config.Dotfiles() != "" {
+		opt.Mount[dotfiles] = p.dockerEnv.DotfileDir()
+	}
+	opt.Mount[p.projectDir] = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
+
+	// create container
+	if err := p.docker.Run(p.imageName(), p.containerName(), opt); err != nil {
+		return fmt.Errorf("failed to create shell: %w", err)
+	}
+
+	// run dotfiles bootstrap script
+	exec_opt := ExecOptions{
+		Fork: true,
+		Tty:  true,
+	}
+	if err := p.docker.Exec(p.containerName(), p.dockerEnv.SetupCommand(dotfiles), exec_opt); err != nil {
+		return fmt.Errorf("failed to bootstrap dotfiles: %w", err)
+	}
+
+	exec_opt.Fork = false
+	exec_opt.Tty = true
+	exec_opt.workDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
+	if err := p.docker.Exec(p.containerName(), []string{"/bin/zsh"}, exec_opt); err != nil {
+		return fmt.Errorf("failed to create shell: %w", err)
+	}
+
 	return nil
 }
 
-func (p *Project) imageName() (string, error) {
-	sum, err := md5sum(filepath.Join(p.projectDir, confDirName, confName))
+func (p *Project) findContainer() (string, error) {
+	containers, err := p.docker.ListContains()
 	if err != nil {
-		return "", fmt.Errorf("failed to get md5sum of config file: %w", err)
+		return "", fmt.Errorf("failed to find container: %w", err)
 	}
-	return p.projectName + "-" + sum + ":nvim", nil
+	cname := "/" + p.containerName()
+	for _, container := range containers {
+		if slices.Contains(container.Names, cname) && container.Image == p.imageName() {
+			return container.Names[0], nil
+		}
+	}
+	return "", nil
+}
+
+func (p *Project) imageName() string {
+	if p.config.Dockerfile() != "" {
+		return p.projectName + "-" + p.md5()
+	}
+
+	return p.config.Image()
+}
+
+func (p *Project) containerName() string {
+	return p.projectName + "-" + p.md5()
+}
+
+func (p *Project) md5() string {
+	sum, err := md5sum(filepath.Join(p.projectConfDir, confName))
+	if err != nil {
+		logging.Fatal(fmt.Errorf("failed to get md5sum of config file: %w", err))
+	}
+	return sum
 }
 
 func findProjectRoot(dir string) (string, error) {
@@ -77,7 +160,7 @@ func findProjectRoot(dir string) (string, error) {
 		}
 
 		for _, pattern := range rootPattern {
-			if isPathExisting(filepath.Join(currentDir, pattern)) {
+			if env.IsPathExisting(filepath.Join(currentDir, pattern)) {
 				return currentDir, nil
 			}
 		}
@@ -86,14 +169,13 @@ func findProjectRoot(dir string) (string, error) {
 	return "", errors.New("project root not found")
 }
 
-type pdir string
-
-func newProjectInternal(projectDir pdir, config ProjectConfig, baseEnv BaseEnv, docker Docker) *Project {
+func newProjectInternal(projectDir string, config ProjectConfig, dockerEnv *env.DockerEnv, docker Docker) *Project {
 	return &Project{
-		config:      config,
-		baseEnv:     baseEnv,
-		projectDir:  string(projectDir),
-		projectName: filepath.Base(string(projectDir)),
-		docker:      docker,
+		config:         config,
+		dockerEnv:      dockerEnv,
+		projectDir:     string(projectDir),
+		projectConfDir: filepath.Join(string(projectDir), env.SpaceName),
+		projectName:    filepath.Base(string(projectDir)),
+		docker:         docker,
 	}
 }

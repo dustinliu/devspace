@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/dustinliu/devspace/env"
+	"github.com/dustinliu/devspace/logging"
 	"github.com/spf13/viper"
 )
 
@@ -11,39 +13,44 @@ const (
 	ImageKey             = "image"
 	DockerFielKey        = "dockerfile"
 	PostCreateCommandKey = "postCreateCommand"
+	ShellKey             = "shell"
+	DotfilesKey          = "dotfiles"
 )
 
 // TODO: add root pattern to config
 // TODO: validate config, image and dockerfile conflict
 var (
-	confName    = "config"
-	confType    = "json"
-	confDirName = ".devspace"
+	confName = "config"
+	confType = "json"
 )
 
 func newViper() *viper.Viper {
-	v := viper.New()
-	v.SetConfigName(confName)
-	v.SetConfigType(confType)
-	return v
+	return viper.New()
 }
 
 type ProjectConfig interface {
 	Image() string
 	Dockerfile() string
 	PostCreateCommand() string
+	Shell() string
+	Dotfiles() string
 }
 
 type ProjectConfigImpl struct {
 	viper *viper.Viper
 }
 
-func newProjectConfig(v *viper.Viper, root pdir) *ProjectConfigImpl {
-	confDir := filepath.Join(string(root), confDirName)
+// TODO: root might not be the project dir
+func newProjectConfig(v *viper.Viper, projectDir string) *ProjectConfigImpl {
+	// setup viper
+	confDir := filepath.Join(string(projectDir), env.SpaceName)
 	v.AddConfigPath(confDir)
+	v.SetConfigName(confName)
+	v.SetConfigType(confType)
+	v.SetDefault(ShellKey, "/bin/zsh")
 	err := v.ReadInConfig()
 	if err != nil {
-		Fatal(fmt.Errorf("error reading config file: %w", err))
+		logging.Fatal(fmt.Errorf("error reading config file: %w", err))
 	}
 
 	return &ProjectConfigImpl{
@@ -61,4 +68,12 @@ func (c *ProjectConfigImpl) Dockerfile() string {
 
 func (c *ProjectConfigImpl) PostCreateCommand() string {
 	return c.viper.GetString(PostCreateCommandKey)
+}
+
+func (c *ProjectConfigImpl) Shell() string {
+	return c.viper.GetString(ShellKey)
+}
+
+func (c *ProjectConfigImpl) Dotfiles() string {
+	return c.viper.GetString(DotfilesKey)
 }

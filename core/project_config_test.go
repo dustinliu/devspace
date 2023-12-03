@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+// TODO: remove the dir
 type ProjectConfigTestSuite struct {
 	DevspaceTestSuite
 	TestDir    string
@@ -26,11 +27,12 @@ func (s *ProjectConfigTestSuite) TestLoadConfig() {
 		panic(err)
 	}
 	projectDir = filepath.Join(projectDir, "tests")
-	config := newProjectConfig(v, pdir(projectDir))
+	config := newProjectConfig(v, (projectDir))
 
 	s.Equal("node:latest", config.Image())
 	s.Equal("Dockerfile", config.Dockerfile())
 	s.Equal("npm install", config.PostCreateCommand())
+	s.Equal("~/ini", config.Dotfiles())
 }
 
 func (s *ProjectConfigTestSuite) SetupTest() {
@@ -40,6 +42,7 @@ func (s *ProjectConfigTestSuite) SetupTest() {
 	}
 }
 
+// TODO: wrong suite to new
 func TestProjectConfig(t *testing.T) {
 	suite.Run(t, NewDevspaceTestSuite())
 }
