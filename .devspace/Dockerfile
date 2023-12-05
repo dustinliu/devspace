@@ -1,2 +1,2 @@
-FROM dustinliu/nvim:latest
-RUN apk update && apk add --no-cache go make
+FROM golang:alpine
+RUN apk update && apk add --no-cache  make neovim stow zsh git

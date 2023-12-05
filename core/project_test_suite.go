@@ -11,7 +11,7 @@ const (
 	testPrjName = "test-project"
 )
 
-type DevspaceTestSuite struct {
+type CoreTestSuite struct {
 	*suite.Suite
 	TestDir     string
 	ProjectDir  string
@@ -21,14 +21,14 @@ type DevspaceTestSuite struct {
 }
 
 // remove test space directory then create test project and share space
-func (s *DevspaceTestSuite) SetupTest() {
+func (s *CoreTestSuite) SetupTest() {
 	s.Require().NoError(os.RemoveAll(s.TestDir))
 	s.Require().NoError(os.MkdirAll(s.ProjectDir, 0755))
 }
 
-func NewDevspaceTestSuite() *DevspaceTestSuite {
+func NewCoreTestSuite() *CoreTestSuite {
 	r := filepath.Join(os.TempDir(), "devspace")
-	return &DevspaceTestSuite{
+	return &CoreTestSuite{
 		Suite:       new(suite.Suite),
 		TestDir:     r,
 		ProjectDir:  filepath.Join(r, testPrjName),

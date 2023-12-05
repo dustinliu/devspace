@@ -1,5 +1,5 @@
 {
-    "image": "dustinliu/go",
+    "dockerfile": "Dockerfile",
     "dotfiles": "~/ini",
     "postCreateCommand": ""
 }

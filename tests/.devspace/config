@@ -3,4 +3,5 @@
     "dockerfile": "Dockerfile",
     "postCreateCommand": "npm install",
     "dotfiles": "~/ini"
+    "rootPattern: [".git", "go.mod"]
 }

@@ -42,22 +42,13 @@ type ExecOptions struct {
 	workDir string
 }
 
-type Docker interface {
-	ListImages() ([]types.ImageSummary, error)
-	BuildImage(tag, dockerfile, path string) error
-	ListContains() ([]types.Container, error)
-	Run(imageID, containerName string, opt RunOptions) error
-	Attach(container types.Container) error
-	Exec(containerName string, cmd []string, opt ExecOptions) error
+func newDocker() *Docker {
+	return &Docker{}
 }
 
-func newDocker() *DockerAPI {
-	return &DockerAPI{}
-}
+type Docker struct{}
 
-type DockerAPI struct{}
-
-func (d *DockerAPI) BuildImage(tag, dockerfile, path string) error {
+func (d *Docker) BuildImage(tag, dockerfile, path string) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -100,7 +91,7 @@ func (d *DockerAPI) BuildImage(tag, dockerfile, path string) error {
 	return nil
 }
 
-func (d *DockerAPI) ListImages() ([]types.ImageSummary, error) {
+func (d *Docker) ListImages() ([]types.ImageSummary, error) {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -116,7 +107,7 @@ func (d *DockerAPI) ListImages() ([]types.ImageSummary, error) {
 	return images, nil
 }
 
-func (d *DockerAPI) ListContains() ([]types.Container, error) {
+func (d *Docker) ListContains() ([]types.Container, error) {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -132,7 +123,7 @@ func (d *DockerAPI) ListContains() ([]types.Container, error) {
 	return containers, nil
 }
 
-func (d *DockerAPI) Attach(container types.Container) error {
+func (d *Docker) Attach(container types.Container) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -153,7 +144,7 @@ func (d *DockerAPI) Attach(container types.Container) error {
 	return nil
 }
 
-func (d *DockerAPI) Run(imageID, containerName string, opt RunOptions) error {
+func (d *Docker) Run(imageID, containerName string, opt RunOptions) error {
 	logging.Debug("container " + containerName + " not found, create new one")
 
 	args := []string{"run", "--name", containerName}
@@ -189,7 +180,7 @@ func (d *DockerAPI) Run(imageID, containerName string, opt RunOptions) error {
 	return nil
 }
 
-func (d *DockerAPI) Exec(container string, cmd []string, opt ExecOptions) error {
+func (d *Docker) Exec(container string, cmd []string, opt ExecOptions) error {
 	args := []string{"exec", "-i"}
 	if opt.Tty {
 		args = append(args, "-t")

@@ -11,13 +11,13 @@ import (
 
 const (
 	ImageKey             = "image"
-	DockerFielKey        = "dockerfile"
+	DockerFileKey        = "dockerfile"
 	PostCreateCommandKey = "postCreateCommand"
 	ShellKey             = "shell"
 	DotfilesKey          = "dotfiles"
+	RootPatternKey       = "rootPattern"
 )
 
-// TODO: add root pattern to config
 // TODO: validate config, image and dockerfile conflict
 var (
 	confName = "config"
@@ -28,20 +28,11 @@ func newViper() *viper.Viper {
 	return viper.New()
 }
 
-type ProjectConfig interface {
-	Image() string
-	Dockerfile() string
-	PostCreateCommand() string
-	Shell() string
-	Dotfiles() string
-}
-
-type ProjectConfigImpl struct {
+type ProjectConfig struct {
 	viper *viper.Viper
 }
 
-// TODO: root might not be the project dir
-func newProjectConfig(v *viper.Viper, projectDir string) *ProjectConfigImpl {
+func newProjectConfig(v *viper.Viper, projectDir string) *ProjectConfig {
 	// setup viper
 	confDir := filepath.Join(string(projectDir), env.SpaceName)
 	v.AddConfigPath(confDir)
@@ -53,27 +44,31 @@ func newProjectConfig(v *viper.Viper, projectDir string) *ProjectConfigImpl {
 		logging.Fatal(fmt.Errorf("error reading config file: %w", err))
 	}
 
-	return &ProjectConfigImpl{
+	return &ProjectConfig{
 		viper: v,
 	}
 }
 
-func (c *ProjectConfigImpl) Image() string {
+func (c *ProjectConfig) Image() string {
 	return c.viper.GetString(ImageKey)
 }
 
-func (c *ProjectConfigImpl) Dockerfile() string {
-	return c.viper.GetString(DockerFielKey)
+func (c *ProjectConfig) Dockerfile() string {
+	return c.viper.GetString(DockerFileKey)
 }
 
-func (c *ProjectConfigImpl) PostCreateCommand() string {
+func (c *ProjectConfig) PostCreateCommand() string {
 	return c.viper.GetString(PostCreateCommandKey)
 }
 
-func (c *ProjectConfigImpl) Shell() string {
+func (c *ProjectConfig) Shell() string {
 	return c.viper.GetString(ShellKey)
 }
 
-func (c *ProjectConfigImpl) Dotfiles() string {
+func (c *ProjectConfig) Dotfiles() string {
 	return c.viper.GetString(DotfilesKey)
+}
+
+func (c *ProjectConfig) RootPattern() []string {
+	return c.viper.GetStringSlice(RootPatternKey)
 }

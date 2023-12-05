@@ -12,15 +12,12 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var (
-	rootPattern  = []string{".git"}
-	rootMaxDepth = 4
-)
+var rootMaxDepth = 4
 
 type Project struct {
-	config    ProjectConfig
+	config    *ProjectConfig
 	dockerEnv *env.DockerEnv
-	docker    Docker
+	docker    *Docker
 
 	projectDir     string
 	projectConfDir string
@@ -33,17 +30,11 @@ func NewProject() (*Project, error) {
 		return nil, fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
-	projectDir, err := findProjectRoot(currentDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get project directory: %w", err)
+	if !env.IsPathExisting(filepath.Join(currentDir, env.SpaceName)) {
+		return nil, errors.New(".devspace directory not found, make sure you are in project root")
 	}
 
-	if !env.IsPathExisting(filepath.Join(projectDir, env.SpaceName)) {
-		return nil, errors.New(".devspace directory not found")
-	}
-
-	// repoDir := filepath.Join(xdg.Home, confDirName)
-	return initProject(projectDir), nil
+	return initProject(currentDir), nil
 }
 
 func (p *Project) Build() error {
@@ -60,7 +51,7 @@ func (p *Project) Build() error {
 func (p *Project) Shell() error {
 	container, err := p.findContainer()
 	if err != nil {
-		return fmt.Errorf("failed to find container: %w", err)
+		return fmt.Errorf("failed to list container: %w", err)
 	}
 	if container != "" {
 		exec_opt := ExecOptions{
@@ -68,12 +59,18 @@ func (p *Project) Shell() error {
 			Tty:     true,
 			workDir: filepath.Join(p.dockerEnv.WorkSpace(), p.projectName),
 		}
-		if err := p.docker.Exec(container, []string{p.config.Shell()}, exec_opt); err != nil {
-			return fmt.Errorf("failed to attach to container: %w", err)
-		}
+		return p.docker.Exec(container, []string{p.config.Shell()}, exec_opt)
 	}
 
-	// if container not exists, create one
+	// if dockerfile exists, build image
+	if p.config.Dockerfile() != "" {
+		p.docker.BuildImage(p.imageName(), p.config.Dockerfile(), p.projectConfDir)
+	}
+
+	return p.createContainer()
+}
+
+func (p *Project) createContainer() error {
 	dotfiles, err := homedir.Expand(p.config.Dotfiles())
 	if err != nil {
 		return fmt.Errorf("failed to expand dotfiles path: %w", err)
@@ -152,24 +149,7 @@ func (p *Project) md5() string {
 	return sum
 }
 
-func findProjectRoot(dir string) (string, error) {
-	currentDir, err := filepath.Abs(dir)
-	for i := 0; i < rootMaxDepth; i++ {
-		if err != nil {
-			return "", fmt.Errorf("failed to get project dir %w", err)
-		}
-
-		for _, pattern := range rootPattern {
-			if env.IsPathExisting(filepath.Join(currentDir, pattern)) {
-				return currentDir, nil
-			}
-		}
-		currentDir = filepath.Dir(currentDir)
-	}
-	return "", errors.New("project root not found")
-}
-
-func newProjectInternal(projectDir string, config ProjectConfig, dockerEnv *env.DockerEnv, docker Docker) *Project {
+func newProjectInternal(projectDir string, config *ProjectConfig, dockerEnv *env.DockerEnv, docker *Docker) *Project {
 	return &Project{
 		config:         config,
 		dockerEnv:      dockerEnv,

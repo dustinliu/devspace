@@ -4,7 +4,7 @@ import "os"
 
 const (
 	WorkSpace      = "/workspace"
-	SpaceName      = ".devspaces"
+	SpaceName      = ".devspace"
 	DotFileDirName = "dotfiles"
 )
 
