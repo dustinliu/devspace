@@ -47,7 +47,6 @@ func (p *Project) Build() error {
 	return nil
 }
 
-// TODO: deal with both image and dockerfile
 func (p *Project) Shell() error {
 	container, err := p.findContainer()
 	if err != nil {
@@ -101,14 +100,24 @@ func (p *Project) createContainer() error {
 		Fork: true,
 		Tty:  true,
 	}
-	if err := p.docker.Exec(p.containerName(), p.dockerEnv.SetupCommand(dotfiles), exec_opt); err != nil {
+	if err := p.docker.Exec(p.containerName(), p.dockerEnv.BootstrapCommand(dotfiles), exec_opt); err != nil {
 		return fmt.Errorf("failed to bootstrap dotfiles: %w", err)
+	}
+
+	PostCreateCommand := p.config.PostCreateCommand()
+	if len(PostCreateCommand) > 0 {
+		exec_opt.Fork = true
+		exec_opt.Tty = true
+		exec_opt.workDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
+		if err := p.docker.Exec(p.containerName(), p.config.PostCreateCommand(), exec_opt); err != nil {
+			return fmt.Errorf("failed to bootstrap dotfiles: %w", err)
+		}
 	}
 
 	exec_opt.Fork = false
 	exec_opt.Tty = true
 	exec_opt.workDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
-	if err := p.docker.Exec(p.containerName(), []string{"/bin/zsh"}, exec_opt); err != nil {
+	if err := p.docker.Exec(p.containerName(), []string{p.config.Shell()}, exec_opt); err != nil {
 		return fmt.Errorf("failed to create shell: %w", err)
 	}
 

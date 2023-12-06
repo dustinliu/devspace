@@ -1,5 +1,4 @@
 {
     "dockerfile": "Dockerfile",
-    "dotfiles": "~/ini",
-    "postCreateCommand": ""
+    "dotfiles": "~/ini"
 }

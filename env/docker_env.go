@@ -11,7 +11,6 @@ type DockerEnv struct {
 	dotfileScripts []string
 }
 
-// TODO: read script from config
 func NewDockerEnv() *DockerEnv {
 	env := &DockerEnv{}
 	env.workSpace = WorkSpace
@@ -31,7 +30,7 @@ func (e *DockerEnv) DotfileDir() string {
 	return filepath.Join(e.ShareSpace(), "dotfiles")
 }
 
-func (e *DockerEnv) SetupCommand(dotfileDir string) []string {
+func (e *DockerEnv) BootstrapCommand(dotfileDir string) []string {
 	for _, script := range e.dotfileScripts {
 		s := filepath.Join(dotfileDir, script)
 		if IsFileExisting(s) {
@@ -40,6 +39,6 @@ func (e *DockerEnv) SetupCommand(dotfileDir string) []string {
 		}
 	}
 	logging.Debug("No dotfile script found, use default")
-	p := filepath.Clean(filepath.Join(e.DotfileDir(), "/.*"))
-	return []string{"/bin/sh", "-c", "ln", "-s", p, "$HOME/"}
+	p := e.DotfileDir() + "/.[a-zA-Z0-9]*"
+	return []string{"/bin/sh", "-c", "ln -s " + p + " $HOME"}
 }

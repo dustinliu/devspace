@@ -20,7 +20,7 @@ func (suite *DockerEnvTestSuite) TestCommand() {
 	// bootstrap not exist
 	p := filepath.Clean(filepath.Join(env.DotfileDir(), "/.*"))
 	suite.Equal([]string{"/bin/sh", "-c", "ln", "-s", p, "$HOME/"},
-		env.SetupCommand(suite.DotfilesDir))
+		env.BootstrapCommand(suite.DotfilesDir))
 
 	// bootstrap exist
 	b := filepath.Join(suite.DotfilesDir, "bootstrap")
@@ -30,7 +30,7 @@ func (suite *DockerEnvTestSuite) TestCommand() {
 	}
 	file.Close()
 	suite.Equal([]string{"/bin/sh", filepath.Join(env.DotfileDir(), "bootstrap")},
-		env.SetupCommand(suite.DotfilesDir))
+		env.BootstrapCommand(suite.DotfilesDir))
 }
 
 func TestDockerEnv(t *testing.T) {

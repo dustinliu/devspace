@@ -18,7 +18,6 @@ const (
 	RootPatternKey       = "rootPattern"
 )
 
-// TODO: validate config, image and dockerfile conflict
 var (
 	confName = "config"
 	confType = "json"
@@ -57,8 +56,8 @@ func (c *ProjectConfig) Dockerfile() string {
 	return c.viper.GetString(DockerFileKey)
 }
 
-func (c *ProjectConfig) PostCreateCommand() string {
-	return c.viper.GetString(PostCreateCommandKey)
+func (c *ProjectConfig) PostCreateCommand() []string {
+	return c.viper.GetStringSlice(PostCreateCommandKey)
 }
 
 func (c *ProjectConfig) Shell() string {
