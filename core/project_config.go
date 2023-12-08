@@ -68,6 +68,10 @@ func (c *ProjectConfig) Dotfiles() string {
 	return c.viper.GetString(DotfilesKey)
 }
 
+func (c *ProjectConfig) User() string {
+	return c.viper.GetString("user")
+}
+
 func (c *ProjectConfig) RootPattern() []string {
 	return c.viper.GetStringSlice(RootPatternKey)
 }

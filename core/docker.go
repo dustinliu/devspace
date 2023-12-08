@@ -40,6 +40,7 @@ type ExecOptions struct {
 	Fork    bool
 	Tty     bool
 	workDir string
+	User    string
 }
 
 func newDocker() *Docker {
@@ -187,6 +188,9 @@ func (d *Docker) Exec(container string, cmd []string, opt ExecOptions) error {
 	}
 	if opt.workDir != "" {
 		args = append(args, "-w", opt.workDir)
+	}
+	if opt.User != "" {
+		args = append(args, "-u", opt.User)
 	}
 	args = append(args, container)
 	args = append(args, cmd...)

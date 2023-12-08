@@ -57,6 +57,7 @@ func (p *Project) Shell() error {
 			Fork:    false,
 			Tty:     true,
 			workDir: filepath.Join(p.dockerEnv.WorkSpace(), p.projectName),
+			User:    p.config.User(),
 		}
 		return p.docker.Exec(container, []string{p.config.Shell()}, exec_opt)
 	}
@@ -95,28 +96,29 @@ func (p *Project) createContainer() error {
 		return fmt.Errorf("failed to create shell: %w", err)
 	}
 
-	// run dotfiles bootstrap script
-	exec_opt := ExecOptions{
-		Fork: true,
-		Tty:  true,
-	}
-	if err := p.docker.Exec(p.containerName(), p.dockerEnv.BootstrapCommand(dotfiles), exec_opt); err != nil {
-		return fmt.Errorf("failed to bootstrap dotfiles: %w", err)
-	}
-
+	exec_opt := ExecOptions{}
 	PostCreateCommand := p.config.PostCreateCommand()
 	if len(PostCreateCommand) > 0 {
 		exec_opt.Fork = true
 		exec_opt.Tty = true
 		exec_opt.workDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
-		if err := p.docker.Exec(p.containerName(), p.config.PostCreateCommand(), exec_opt); err != nil {
-			return fmt.Errorf("failed to bootstrap dotfiles: %w", err)
+		if err := p.docker.Exec(p.containerName(), PostCreateCommand, exec_opt); err != nil {
+			return fmt.Errorf("failed to run dotfiles: %w", err)
 		}
+	}
+
+	exec_opt.Fork = true
+	exec_opt.Tty = true
+	exec_opt.User = p.config.User()
+	// run dotfiles bootstrap script
+	if err := p.docker.Exec(p.containerName(), p.dockerEnv.BootstrapCommand(dotfiles), exec_opt); err != nil {
+		return fmt.Errorf("failed to bootstrap dotfiles: %w", err)
 	}
 
 	exec_opt.Fork = false
 	exec_opt.Tty = true
 	exec_opt.workDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
+	exec_opt.User = p.config.User()
 	if err := p.docker.Exec(p.containerName(), []string{p.config.Shell()}, exec_opt); err != nil {
 		return fmt.Errorf("failed to create shell: %w", err)
 	}
