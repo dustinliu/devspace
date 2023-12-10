@@ -37,16 +37,6 @@ func NewProject() (*Project, error) {
 	return initProject(currentDir), nil
 }
 
-func (p *Project) Build() error {
-	tag := p.imageName()
-
-	if err := p.docker.BuildImage(tag, p.config.Dockerfile(), p.projectConfDir); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (p *Project) Shell() error {
 	container, err := p.findContainer()
 	if err != nil {
@@ -56,7 +46,7 @@ func (p *Project) Shell() error {
 		exec_opt := ExecOptions{
 			Fork:    false,
 			Tty:     true,
-			workDir: filepath.Join(p.dockerEnv.WorkSpace(), p.projectName),
+			WorkDir: filepath.Join(p.dockerEnv.WorkSpace(), p.projectName),
 			User:    p.config.User(),
 		}
 		return p.docker.Exec(container, []string{p.config.Shell()}, exec_opt)
@@ -84,7 +74,8 @@ func (p *Project) createContainer() error {
 			"DEVSPACE_SHARE":    p.dockerEnv.ShareSpace(),
 			"DEVSPACE_DOTFILES": p.dockerEnv.DotfileDir(),
 		},
-		Mount: map[string]string{},
+		Mount:   map[string]string{},
+		WorkDir: filepath.Join(p.dockerEnv.WorkSpace(), p.projectName),
 	}
 	if p.config.Dotfiles() != "" {
 		opt.Mount[dotfiles] = p.dockerEnv.DotfileDir()
@@ -101,7 +92,7 @@ func (p *Project) createContainer() error {
 	if len(PostCreateCommand) > 0 {
 		exec_opt.Fork = true
 		exec_opt.Tty = true
-		exec_opt.workDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
+		exec_opt.WorkDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
 		if err := p.docker.Exec(p.containerName(), PostCreateCommand, exec_opt); err != nil {
 			return fmt.Errorf("failed to run dotfiles: %w", err)
 		}
@@ -117,7 +108,7 @@ func (p *Project) createContainer() error {
 
 	exec_opt.Fork = false
 	exec_opt.Tty = true
-	exec_opt.workDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
+	exec_opt.WorkDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
 	exec_opt.User = p.config.User()
 	if err := p.docker.Exec(p.containerName(), []string{p.config.Shell()}, exec_opt); err != nil {
 		return fmt.Errorf("failed to create shell: %w", err)
@@ -164,7 +155,7 @@ func newProjectInternal(projectDir string, config *ProjectConfig, dockerEnv *env
 	return &Project{
 		config:         config,
 		dockerEnv:      dockerEnv,
-		projectDir:     string(projectDir),
+		projectDir:     projectDir,
 		projectConfDir: filepath.Join(string(projectDir), env.SpaceName),
 		projectName:    filepath.Base(string(projectDir)),
 		docker:         docker,

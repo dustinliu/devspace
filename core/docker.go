@@ -34,12 +34,13 @@ type RunOptions struct {
 	Env     map[string]string
 	Fork    bool
 	Detach  bool
+	WorkDir string
 }
 
 type ExecOptions struct {
 	Fork    bool
 	Tty     bool
-	workDir string
+	WorkDir string
 	User    string
 }
 
@@ -186,8 +187,8 @@ func (d *Docker) Exec(container string, cmd []string, opt ExecOptions) error {
 	if opt.Tty {
 		args = append(args, "-t")
 	}
-	if opt.workDir != "" {
-		args = append(args, "-w", opt.workDir)
+	if opt.WorkDir != "" {
+		args = append(args, "-w", opt.WorkDir)
 	}
 	if opt.User != "" {
 		args = append(args, "-u", opt.User)

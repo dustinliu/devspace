@@ -1,2 +1,5 @@
-FROM golang:alpine
-RUN apk update && apk add --no-cache make zsh bash git stow
+FROM golang:alpine as go
+
+FROM dustinliu/nvim:latest
+COPY --from=go /usr/local/go /usr/local/go
+RUN apk update && apk add --no-cache make
