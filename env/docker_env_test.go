@@ -18,8 +18,8 @@ func (suite *DockerEnvTestSuite) TestCommand() {
 	}
 
 	// bootstrap not exist
-	p := filepath.Clean(filepath.Join(env.DotfileDir(), "/.*"))
-	suite.Equal([]string{"/bin/sh", "-c", "ln", "-s", p, "$HOME/"},
+	p := filepath.Clean(filepath.Join(env.DotfileDir(), "/.[a-zA-Z0-9]*"))
+	suite.Equal([]string{"/bin/sh", "-c", "ln -s " + p + " $HOME/"},
 		env.BootstrapCommand(suite.DotfilesDir))
 
 	// bootstrap exist

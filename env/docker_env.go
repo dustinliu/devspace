@@ -40,5 +40,5 @@ func (e *DockerEnv) BootstrapCommand(dotfileDir string) []string {
 	}
 	logging.Debug("No dotfile script found, use default")
 	p := e.DotfileDir() + "/.[a-zA-Z0-9]*"
-	return []string{"/bin/sh", "-c", "ln -s " + p + " $HOME"}
+	return []string{"/bin/sh", "-c", "ln -s " + p + " $HOME/"}
 }

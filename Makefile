@@ -61,10 +61,10 @@ clean:
 	@rm -rf dist
 	@rm -f core/wire_gen.go
 
-release:
+prerelease: vet test
 	git tag `cat version`
 	git push origin `cat version`
 
 all: build
 
-.PHONY: build clean test vet wire generate $(PLATFORMS)
+.PHONY: build clean test vet wire generate prerelease $(PLATFORMS)
