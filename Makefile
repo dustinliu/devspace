@@ -62,6 +62,8 @@ clean:
 	@rm -f core/wire_gen.go
 
 prerelease: vet test
+
+tag:
 	git tag `cat version`
 	git push origin `cat version`
 
