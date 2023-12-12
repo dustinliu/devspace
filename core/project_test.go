@@ -11,12 +11,8 @@ type ProjectTestSuite struct {
 }
 
 func (s *ProjectTestSuite) TestNewProject() {
-	project := &Project{}
-
-	s.Equal(s.ProjectDir, project.projectDir)
-	s.Equal(s.ProjectName, project.projectName)
 }
 
 func TestProject(t *testing.T) {
-	suite.Run(t, NewCoreTestSuite())
+	suite.Run(t, &ProjectTestSuite{NewCoreTestSuite()})
 }

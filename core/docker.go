@@ -8,12 +8,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"syscall"
 
-	"github.com/creack/pty/v2"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/dustinliu/devspace/env"
 	"github.com/dustinliu/devspace/logging"
 )
 
@@ -28,18 +28,15 @@ func init() {
 }
 
 type RunOptions struct {
+	Detach  bool
 	Mount   map[string]string
 	Command []string
-	Rm      bool
 	Env     map[string]string
-	Fork    bool
-	Detach  bool
 	WorkDir string
+	Labels  map[string]string
 }
 
 type ExecOptions struct {
-	Fork    bool
-	Tty     bool
 	WorkDir string
 	User    string
 }
@@ -50,7 +47,7 @@ func newDocker() *Docker {
 
 type Docker struct{}
 
-func (d *Docker) BuildImage(tag, dockerfile, path string) error {
+func (d *Docker) BuildImage(opts types.ImageBuildOptions, path string) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -64,12 +61,6 @@ func (d *Docker) BuildImage(tag, dockerfile, path string) error {
 	}
 	defer tar.Close()
 
-	opts := types.ImageBuildOptions{
-		Dockerfile: dockerfile,
-		Tags:       []string{tag},
-		Remove:     true,
-		PullParent: false,
-	}
 	response, err := cli.ImageBuild(ctx, tar, opts)
 	if err != nil {
 		return err
@@ -101,7 +92,8 @@ func (d *Docker) ListImages() ([]types.ImageSummary, error) {
 	}
 	defer cli.Close()
 
-	images, err := cli.ImageList(ctx, types.ImageListOptions{})
+	filter := filters.NewArgs(filters.Arg("Labels", env.SpaceName))
+	images, err := cli.ImageList(ctx, types.ImageListOptions{Filters: filter})
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +109,8 @@ func (d *Docker) ListContains() ([]types.Container, error) {
 	}
 	defer cli.Close()
 
-	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{All: true})
+	filter := filters.NewArgs(filters.Arg("Labels", env.SpaceName))
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{Filters: filter})
 	if err != nil {
 		return nil, err
 	}
@@ -125,32 +118,15 @@ func (d *Docker) ListContains() ([]types.Container, error) {
 	return containers, nil
 }
 
-func (d *Docker) Attach(container types.Container) error {
-	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return fmt.Errorf("failed to create docker client: %w", err)
-	}
-	defer cli.Close()
-
-	if container.State != "running" {
-		if err := cli.ContainerStart(ctx, container.ID, types.ContainerStartOptions{}); err != nil {
-			return err
-		}
-	}
-
-	if err := execDocker("attach", container.Names[0]); err != nil {
-		return fmt.Errorf("failed to run shell: %w", err)
-	}
-
-	return nil
-}
-
 func (d *Docker) Run(imageID, containerName string, opt RunOptions) error {
 	logging.Debug("container " + containerName + " not found, create new one")
 
 	args := []string{"run", "--name", containerName}
-	// moint volumes
+	// set labels
+	for k, v := range opt.Labels {
+		args = append(args, "-l", k+"="+v)
+	}
+	// mount volumes
 	for src, dst := range opt.Mount {
 		args = append(args, "-v", src+":"+dst)
 	}
@@ -158,24 +134,13 @@ func (d *Docker) Run(imageID, containerName string, opt RunOptions) error {
 	for k, v := range opt.Env {
 		args = append(args, "-e", k+"="+v)
 	}
-	// remove container after exit
-	if opt.Rm {
-		args = append(args, "--rm")
-	}
 	if opt.Detach {
 		args = append(args, "-d")
 	}
 	args = append(args, imageID)
 	args = append(args, opt.Command...)
 
-	var runner func(args ...string) error
-	if opt.Fork {
-		runner = runDocker
-	} else {
-		runner = execDocker
-	}
-
-	if err := runner(args...); err != nil {
+	if err := runDocker(args...); err != nil {
 		return fmt.Errorf("failed to run shell: %w", err)
 	}
 
@@ -183,10 +148,7 @@ func (d *Docker) Run(imageID, containerName string, opt RunOptions) error {
 }
 
 func (d *Docker) Exec(container string, cmd []string, opt ExecOptions) error {
-	args := []string{"exec", "-i"}
-	if opt.Tty {
-		args = append(args, "-t")
-	}
+	args := []string{"exec", "-it"}
 	if opt.WorkDir != "" {
 		args = append(args, "-w", opt.WorkDir)
 	}
@@ -196,13 +158,7 @@ func (d *Docker) Exec(container string, cmd []string, opt ExecOptions) error {
 	args = append(args, container)
 	args = append(args, cmd...)
 
-	var runner func(args ...string) error
-	if opt.Fork {
-		runner = runDocker
-	} else {
-		runner = execDocker
-	}
-	if err := runner(args...); err != nil {
+	if err := runDocker(args...); err != nil {
 		return fmt.Errorf("failed to create shell: %w", err)
 	}
 
@@ -213,30 +169,17 @@ func runDocker(args ...string) error {
 	logging.Debug("run docker with docker: ", docker_exec)
 	logging.Debug("run docker with args: ", args)
 	cmd := exec.Command(docker_exec, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
 
-	// must allcate a pty or some progrrams will not output anything
-	f, err := pty.Start(cmd)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	go func() { io.Copy(os.Stdout, f) }()
-
-	if err := cmd.Wait(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func execDocker(args ...string) error {
-	logging.Debug("exec docker with docker: ", docker_exec)
-	logging.Debug("exec docker with args: ", args)
-	args = append([]string{"docker"}, args...)
-	if err := syscall.Exec(docker_exec, args, []string{}); err != nil {
-		return err
-	}
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	cmd.Stdin = nil
 
 	return nil
 }

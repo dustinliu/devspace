@@ -20,20 +20,16 @@ const (
 
 var (
 	confName = "config"
-	confType = "json"
+	confType = "toml"
 )
-
-func newViper() *viper.Viper {
-	return viper.New()
-}
 
 type ProjectConfig struct {
 	viper *viper.Viper
 }
 
-func newProjectConfig(v *viper.Viper, projectDir string) *ProjectConfig {
-	// setup viper
-	confDir := filepath.Join(string(projectDir), env.SpaceName)
+func newProjectConfig(projectDir string) *ProjectConfig {
+	v := viper.New()
+	confDir := filepath.Join(projectDir, env.SpaceName)
 	v.AddConfigPath(confDir)
 	v.SetConfigName(confName)
 	v.SetConfigType(confType)

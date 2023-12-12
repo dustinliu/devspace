@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/docker/docker/api/types"
 	"github.com/dustinliu/devspace/env"
 	"github.com/dustinliu/devspace/logging"
 	homedir "github.com/mitchellh/go-homedir"
@@ -37,15 +38,13 @@ func NewProject() (*Project, error) {
 	return initProject(currentDir), nil
 }
 
-func (p *Project) Shell() error {
+func (p *Project) Shell(stop bool) error {
 	container, err := p.findContainer()
 	if err != nil {
 		return fmt.Errorf("failed to list container: %w", err)
 	}
 	if container != "" {
 		exec_opt := ExecOptions{
-			Fork:    false,
-			Tty:     true,
 			WorkDir: filepath.Join(p.dockerEnv.WorkSpace(), p.projectName),
 			User:    p.config.User(),
 		}
@@ -54,7 +53,14 @@ func (p *Project) Shell() error {
 
 	// if dockerfile exists, build image
 	if p.config.Dockerfile() != "" {
-		p.docker.BuildImage(p.imageName(), p.config.Dockerfile(), p.projectConfDir)
+		opts := types.ImageBuildOptions{
+			Dockerfile: p.config.Dockerfile(),
+			Tags:       []string{p.imageName()},
+			Labels: map[string]string{
+				env.SpaceName: p.projectName,
+			},
+		}
+		p.docker.BuildImage(opts, p.projectConfDir)
 	}
 
 	return p.createContainer()
@@ -66,16 +72,18 @@ func (p *Project) createContainer() error {
 		return fmt.Errorf("failed to expand dotfiles path: %w", err)
 	}
 	opt := RunOptions{
-		Fork:    true,
-		Detach:  true,
 		Command: []string{"/bin/sleep", "infinity"},
 		Env: map[string]string{
 			"DEVSPACE":          "true",
 			"DEVSPACE_SHARE":    p.dockerEnv.ShareSpace(),
 			"DEVSPACE_DOTFILES": p.dockerEnv.DotfileDir(),
 		},
+		Labels: map[string]string{
+			env.SpaceName: p.projectName,
+		},
 		Mount:   map[string]string{},
 		WorkDir: filepath.Join(p.dockerEnv.WorkSpace(), p.projectName),
+		Detach:  true,
 	}
 	if p.config.Dotfiles() != "" {
 		opt.Mount[dotfiles] = p.dockerEnv.DotfileDir()
@@ -90,24 +98,18 @@ func (p *Project) createContainer() error {
 	exec_opt := ExecOptions{}
 	PostCreateCommand := p.config.PostCreateCommand()
 	if len(PostCreateCommand) > 0 {
-		exec_opt.Fork = true
-		exec_opt.Tty = true
 		exec_opt.WorkDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
 		if err := p.docker.Exec(p.containerName(), PostCreateCommand, exec_opt); err != nil {
 			return fmt.Errorf("failed to run dotfiles: %w", err)
 		}
 	}
 
-	exec_opt.Fork = true
-	exec_opt.Tty = true
 	exec_opt.User = p.config.User()
 	// run dotfiles bootstrap script
 	if err := p.docker.Exec(p.containerName(), p.dockerEnv.BootstrapCommand(dotfiles), exec_opt); err != nil {
 		return fmt.Errorf("failed to bootstrap dotfiles: %w", err)
 	}
 
-	exec_opt.Fork = false
-	exec_opt.Tty = true
 	exec_opt.WorkDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
 	exec_opt.User = p.config.User()
 	if err := p.docker.Exec(p.containerName(), []string{p.config.Shell()}, exec_opt); err != nil {
@@ -133,18 +135,22 @@ func (p *Project) findContainer() (string, error) {
 
 func (p *Project) imageName() string {
 	if p.config.Dockerfile() != "" {
-		return p.projectName + "-" + p.md5()
+		return p.projectName + "-" + p.md5("image")
 	}
 
 	return p.config.Image()
 }
 
 func (p *Project) containerName() string {
-	return p.projectName + "-" + p.md5()
+	return p.projectName + "-" + p.md5("container")
 }
 
-func (p *Project) md5() string {
-	sum, err := md5sum(filepath.Join(p.projectConfDir, confName))
+func (p *Project) md5(prefix string) string {
+	files := []string{filepath.Join(p.projectConfDir, confName)}
+	if p.config.Dockerfile() != "" {
+		files = append(files, filepath.Join(p.projectConfDir, p.config.Dockerfile()))
+	}
+	sum, err := md5sum(prefix, files...)
 	if err != nil {
 		logging.Fatal(fmt.Errorf("failed to get md5sum of config file: %w", err))
 	}

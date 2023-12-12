@@ -22,13 +22,13 @@ type CoreTestSuite struct {
 
 // remove test space directory then create test project and share space
 func (s *CoreTestSuite) SetupTest() {
-	s.Require().NoError(os.RemoveAll(s.TestDir))
-	s.Require().NoError(os.MkdirAll(s.ProjectDir, 0755))
+	s.Require().Nil(os.RemoveAll(s.TestDir))
+	s.Require().Nil(os.MkdirAll(s.ProjectDir, 0755))
 }
 
-func NewCoreTestSuite() *CoreTestSuite {
+func NewCoreTestSuite() CoreTestSuite {
 	r := filepath.Join(os.TempDir(), "devspace")
-	return &CoreTestSuite{
+	return CoreTestSuite{
 		Suite:       new(suite.Suite),
 		TestDir:     r,
 		ProjectDir:  filepath.Join(r, testPrjName),

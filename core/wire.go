@@ -13,7 +13,6 @@ func initProject(p string) *Project {
 		newProjectInternal,
 		newProjectConfig,
 		env.NewDockerEnv,
-		newViper,
 		newDocker,
 	)
 

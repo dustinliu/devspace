@@ -3,7 +3,6 @@ module github.com/dustinliu/devspace
 go 1.21.4
 
 require (
-	github.com/creack/pty/v2 v2.0.1
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/fatih/color v1.16.0
 	github.com/google/wire v0.5.0

@@ -1,5 +1,3 @@
-{
-    "dockerfile": "Dockerfile",
-    "dotfiles": "~/ini",
-    "user": "nvim"
-}
+dockerfile = "Dockerfile"
+dotfiles = "~/ini"
+user = "nvim"

@@ -5,38 +5,40 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spf13/viper"
+	"github.com/dustinliu/devspace/env"
 	"github.com/stretchr/testify/suite"
+)
+
+const (
+	test_config = `image = "node:latest"
+dockerfile = "Dockerfile"
+postCreateCommand = ["npm", "install"]
+dotfiles = "~/ini"
+rootPattern = [".git", "go.mod"]
+`
 )
 
 type ProjectConfigTestSuite struct {
 	CoreTestSuite
-	TestDir    string
-	projectDir string
+}
+
+func (s *ProjectConfigTestSuite) SetupTest() {
+	s.CoreTestSuite.SetupTest()
 }
 
 func (s *ProjectConfigTestSuite) TestLoadConfig() {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		s.Fail("failed to get current working directory")
-	}
-	projectDir := filepath.Join(currentDir, "tests")
-	config := newProjectConfig(viper.New(), projectDir)
+	confDir := filepath.Join(s.ProjectDir, env.SpaceName)
+	s.Require().Nil(os.MkdirAll(confDir, 0755))
+	s.Require().Nil(os.WriteFile(filepath.Join(confDir, "config"), []byte(test_config), 0644))
 
+	config := newProjectConfig(s.ProjectDir)
 	s.Equal("node:latest", config.Image())
 	s.Equal("Dockerfile", config.Dockerfile())
-	s.Equal("npm install", config.PostCreateCommand())
+	s.Equal([]string{"npm", "install"}, config.PostCreateCommand())
 	s.Equal("~/ini", config.Dotfiles())
 	s.Equal([]string{".git", "go.mod"}, config.RootPattern())
 }
 
-func (s *ProjectConfigTestSuite) SetupTest() {
-	os.RemoveAll(s.TestDir)
-	if err := os.MkdirAll(s.projectDir, 0755); err != nil {
-		s.Fail("failed to create test project directory")
-	}
-}
-
 func TestProjectConfig(t *testing.T) {
-	suite.Run(t, NewCoreTestSuite())
+	suite.Run(t, &ProjectConfigTestSuite{NewCoreTestSuite()})
 }

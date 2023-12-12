@@ -32,12 +32,11 @@ generate:
 	@echo 'generate codes'
 	@go generate ./...
 
-wire:
+core/wire_gen.go: core/wire.go
 	@echo 'generate wire codes'
 	@go run github.com/google/wire/cmd/wire ./...
 
-
-dev: generate wire
+dev: core/wire_gen.go
 	@go build -gcflags="all=-N -l" -ldflags "-X main.version=`cat version`" -o $(build_dir)/$(app)
 
 
