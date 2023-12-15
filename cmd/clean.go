@@ -6,16 +6,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var stop_container bool
-
 func init() {
-	shellCmd.Flags().BoolVarP(&stop_container, "stop", "s", false, "stop container after shell exit")
-	rootCmd.AddCommand(shellCmd)
+	rootCmd.AddCommand(cleanCmd)
 }
 
-var shellCmd = &cobra.Command{
-	Use:   "shell",
-	Short: "spawn a shell in dev environment",
+var cleanCmd = &cobra.Command{
+	Use:   "clean",
+	Short: "clean unused docker images and containers",
 	Run: func(_ *cobra.Command, _ []string) {
 		project, err := core.NewProject()
 		if err != nil {

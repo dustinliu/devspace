@@ -10,6 +10,7 @@ import (
 	"os/exec"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
@@ -101,7 +102,7 @@ func (d *Docker) ListImages() ([]types.ImageSummary, error) {
 	return images, nil
 }
 
-func (d *Docker) ListContains() ([]types.Container, error) {
+func (d *Docker) ListContains(opts types.ContainerListOptions) ([]types.Container, error) {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -109,13 +110,50 @@ func (d *Docker) ListContains() ([]types.Container, error) {
 	}
 	defer cli.Close()
 
-	filter := filters.NewArgs(filters.Arg("Labels", env.SpaceName))
-	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{Filters: filter})
+	containers, err := cli.ContainerList(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
+	logging.Debug("number of container: ", len(containers))
+	logging.Debugf("containers: %v", containers)
 	return containers, nil
+}
+
+func (d *Docker) StartContainer(id string) error {
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	if err := cli.ContainerStart(ctx, id, types.ContainerStartOptions{}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Docker) StopContainer(id string, timeout int) error {
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	if timeout == 0 {
+		timeout = 10
+	}
+	opts := container.StopOptions{
+		Timeout: &timeout,
+	}
+	if err := cli.ContainerStop(ctx, id, opts); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *Docker) Run(imageID, containerName string, opt RunOptions) error {
@@ -182,4 +220,8 @@ func runDocker(args ...string) error {
 	cmd.Stdin = nil
 
 	return nil
+}
+
+func NormalizeContainerName(name string) string {
+	return "/" + name
 }

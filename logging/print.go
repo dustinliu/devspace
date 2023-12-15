@@ -37,6 +37,15 @@ func Debug(v ...any) {
 	}
 }
 
+func Debugf(format string, v ...any) {
+	if DebugMode {
+		color.New(color.FgYellow).Fprint(os.Stdout, "[DEBUG] ")
+		color.New(color.FgCyan).Fprint(os.Stdout, "("+trace()+") ")
+		fmt.Fprintf(os.Stdout, format, v...)
+		fmt.Fprintln(os.Stdout)
+	}
+}
+
 func trace() string {
 	pc := make([]uintptr, 15)
 	n := runtime.Callers(2, pc)
