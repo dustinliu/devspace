@@ -13,7 +13,7 @@ type DockerEnvTestSuite struct {
 }
 
 func (suite *DockerEnvTestSuite) TestCommand() {
-	env := &DockerEnv{
+	env := &ContainerEnv{
 		dotfileScripts: []string{"bootstrap"},
 	}
 

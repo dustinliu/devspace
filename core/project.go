@@ -18,7 +18,7 @@ var rootMaxDepth = 4
 
 type Project struct {
 	config    *ProjectConfig
-	dockerEnv *env.DockerEnv
+	dockerEnv *env.ContainerEnv
 	docker    *Docker
 
 	projectDir     string
@@ -183,7 +183,7 @@ func (p *Project) md5(prefix string) string {
 	return sum
 }
 
-func newProjectInternal(projectDir string, config *ProjectConfig, dockerEnv *env.DockerEnv, docker *Docker) *Project {
+func newProjectInternal(projectDir string, config *ProjectConfig, dockerEnv *env.ContainerEnv, docker *Docker) *Project {
 	return &Project{
 		config:         config,
 		dockerEnv:      dockerEnv,

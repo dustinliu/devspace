@@ -17,7 +17,7 @@ endif
 
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 
-build: generate wire $(PLATFORMS)
+build: core/wire_gen.go $(PLATFORMS)
 
 
 $(PLATFORMS):
@@ -28,29 +28,22 @@ $(PLATFORMS):
 	@tar zcf $(dist_dir)/$(app)-$(os)-$(arch).tar.gz -C $(target_dir) $(app)
 	@cd $(dist_dir); $(md5) $(app)-$(os)-$(arch).tar.gz >> checksums.txt
 
-generate:
-	@echo 'generate codes'
-	@go generate ./...
 
 core/wire_gen.go: core/wire.go
 	@echo 'generate wire codes'
 	@go run github.com/google/wire/cmd/wire ./...
 
-dev: core/wire_gen.go
-	@go build -gcflags="all=-N -l" -ldflags "-X main.version=`cat version`" -o $(build_dir)/$(app)
+debug-build: core/wire_gen.go
+	@go build -gcflags="all=-N -l" -ldflags "-X main.version=`cat version`" -o $(app)
 
-
-debug: dev
-	@$(build_dir)/$(app)
-
-vet: wire
+vet: core/wire_gen.go
 	@echo running go vet...
 	@go vet ./...
 	@echo
 
-test: generate wire
+test: core/wire_gen.go
 	@echo testing...
-	@go test -timeout 10s ./...
+	@go test -timeout 10s -v ./...
 	@echo
 
 clean:
@@ -59,6 +52,7 @@ clean:
 	@rm -rf build
 	@rm -rf dist
 	@rm -f core/wire_gen.go
+	@rm -f $(app)
 
 prerelease: vet test
 

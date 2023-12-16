@@ -12,7 +12,7 @@ func initProject(p string) *Project {
 	wire.Build(
 		newProjectInternal,
 		newProjectConfig,
-		env.NewDockerEnv,
+		env.NewContainerEnv,
 		newDocker,
 	)
 

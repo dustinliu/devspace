@@ -6,31 +6,31 @@ import (
 	"github.com/dustinliu/devspace/logging"
 )
 
-type DockerEnv struct {
+type ContainerEnv struct {
 	workSpace      string
 	dotfileScripts []string
 }
 
-func NewDockerEnv() *DockerEnv {
-	env := &DockerEnv{}
+func NewContainerEnv() *ContainerEnv {
+	env := &ContainerEnv{}
 	env.workSpace = WorkSpace
 	env.dotfileScripts = []string{"bootstrap"}
 	return env
 }
 
-func (e *DockerEnv) WorkSpace() string {
+func (e *ContainerEnv) WorkSpace() string {
 	return e.workSpace
 }
 
-func (e *DockerEnv) ShareSpace() string {
+func (e *ContainerEnv) ShareSpace() string {
 	return filepath.Join(e.workSpace, SpaceName)
 }
 
-func (e *DockerEnv) DotfileDir() string {
+func (e *ContainerEnv) DotfileDir() string {
 	return filepath.Join(e.ShareSpace(), "dotfiles")
 }
 
-func (e *DockerEnv) BootstrapCommand(dotfileDir string) []string {
+func (e *ContainerEnv) BootstrapCommand(dotfileDir string) []string {
 	for _, script := range e.dotfileScripts {
 		s := filepath.Join(dotfileDir, script)
 		if IsFileExisting(s) {
