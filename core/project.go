@@ -43,7 +43,7 @@ func (p *Project) Shell(stop bool) error {
 		return fmt.Errorf("failed to list container: %w", err)
 	}
 	if container == nil {
-		if err := p.createContainer(); err != nil {
+		if container, err = p.createContainer(); err != nil {
 			return fmt.Errorf("failed to create container: %w", err)
 		}
 	} else if container.State != "running" {
@@ -77,7 +77,7 @@ func (p *Project) Shell(stop bool) error {
 	return nil
 }
 
-func (p *Project) createContainer() error {
+func (p *Project) createContainer() (*types.Container, error) {
 	// build image if dockerfile exists
 	if p.config.Dockerfile() != "" {
 		opts := types.ImageBuildOptions{
@@ -88,7 +88,7 @@ func (p *Project) createContainer() error {
 			},
 		}
 		if err := p.docker.BuildImage(opts, p.projectConfDir); err != nil {
-			return fmt.Errorf("failed to build image: %w", err)
+			return nil, fmt.Errorf("failed to build image: %w", err)
 		}
 	}
 	// create container
@@ -109,7 +109,7 @@ func (p *Project) createContainer() error {
 
 	dotfiles, err := homedir.Expand(p.config.Dotfiles())
 	if err != nil {
-		return fmt.Errorf("failed to expand dotfiles path: %w", err)
+		return nil, fmt.Errorf("failed to expand dotfiles path: %w", err)
 	}
 	if p.config.Dotfiles() != "" {
 		opt.Mount[dotfiles] = p.dockerEnv.DotfileDir()
@@ -117,7 +117,7 @@ func (p *Project) createContainer() error {
 	opt.Mount[p.projectDir] = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
 
 	if err := p.docker.Run(p.imageName(), p.containerName(), opt); err != nil {
-		return fmt.Errorf("failed to create shell: %w", err)
+		return nil, fmt.Errorf("failed to create shell: %w", err)
 	}
 
 	// run post create command
@@ -126,17 +126,23 @@ func (p *Project) createContainer() error {
 	if len(PostCreateCommand) > 0 {
 		exec_opt.WorkDir = filepath.Join(p.dockerEnv.WorkSpace(), p.projectName)
 		if err := p.docker.Exec(p.containerName(), PostCreateCommand, exec_opt); err != nil {
-			return fmt.Errorf("failed to run dotfiles: %w", err)
+			return nil, fmt.Errorf("failed to run dotfiles: %w", err)
 		}
 	}
 
 	// run dotfiles bootstrap script
 	exec_opt.User = p.config.User()
 	if err := p.docker.Exec(p.containerName(), p.dockerEnv.BootstrapCommand(dotfiles), exec_opt); err != nil {
-		return fmt.Errorf("failed to bootstrap dotfiles: %w", err)
+		return nil, fmt.Errorf("failed to bootstrap dotfiles: %w", err)
 	}
 
-	return nil
+	var container *types.Container
+	container, err = p.findContainer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find container: %w", err)
+	}
+
+	return container, nil
 }
 
 func (p *Project) findContainer() (*types.Container, error) {
