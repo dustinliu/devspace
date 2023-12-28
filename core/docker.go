@@ -74,7 +74,9 @@ func (d *Docker) BuildImage(opts types.ImageBuildOptions, path string) error {
 	scanner := bufio.NewScanner(response.Body)
 	for scanner.Scan() {
 		r := buildResponse{}
-		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
+		bytes := scanner.Bytes()
+		logging.Debug("build response: ", string(bytes))
+		if err := json.Unmarshal(bytes, &r); err != nil {
 			return err
 		}
 		if r.Stream != "" {
