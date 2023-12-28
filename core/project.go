@@ -14,8 +14,6 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 )
 
-var rootMaxDepth = 4
-
 type Project struct {
 	config    *ProjectConfig
 	dockerEnv *env.ContainerEnv
@@ -89,7 +87,9 @@ func (p *Project) createContainer() error {
 				env.SpaceName: p.projectName,
 			},
 		}
-		p.docker.BuildImage(opts, p.projectConfDir)
+		if err := p.docker.BuildImage(opts, p.projectConfDir); err != nil {
+			return fmt.Errorf("failed to build image: %w", err)
+		}
 	}
 	// create container
 	opt := RunOptions{

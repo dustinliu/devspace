@@ -7,10 +7,6 @@ import (
 	"os"
 )
 
-const (
-	keyPhrase = "0eb597818cea4419"
-)
-
 func md5sum(prefix string, files ...string) (string, error) {
 	h := md5.New()
 	if _, err := io.WriteString(h, prefix); err != nil {

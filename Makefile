@@ -36,9 +36,9 @@ core/wire_gen.go: core/wire.go
 debug-build: core/wire_gen.go
 	@go build -gcflags="all=-N -l" -ldflags "-X main.version=`cat version`" -o $(app)
 
-vet: core/wire_gen.go
-	@echo running go vet...
-	@go vet ./...
+lint: core/wire_gen.go
+	@echo running golangcli-lint...
+	@golangci-lint run
 	@echo
 
 test: core/wire_gen.go

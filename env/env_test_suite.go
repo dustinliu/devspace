@@ -7,10 +7,6 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const (
-	testPrjName = "test-project"
-)
-
 type EnvTestSuite struct {
 	*suite.Suite
 	TestDir     string
