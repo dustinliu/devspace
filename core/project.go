@@ -81,6 +81,8 @@ func (p *Project) createContainer() (*types.Container, error) {
 	// build image if dockerfile exists
 	if p.config.Dockerfile() != "" {
 		opts := types.ImageBuildOptions{
+			PullParent: false,
+			Remove:     true,
 			Dockerfile: p.config.Dockerfile(),
 			Tags:       []string{p.imageName()},
 			Labels: map[string]string{
