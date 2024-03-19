@@ -1,0 +1,22 @@
+[package]
+name = "devspace"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { version = "1.0.81", features = ["backtrace"] }
+bollard = { version = "0.16.0", features = ["buildkit"] }
+clap = { version = "4.5.3", features = ["derive"] }
+jsonc-parser = { version = "0.23.0", features = ["serde_json", "serde"] }
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.115"
+tokio = "1.37.0"
+which = "6.0.1"
+xdg = "2.5.2"
+
+[dev-dependencies]
+mockall = "0.12.1"
+tempfile = "3.10.1"
+
