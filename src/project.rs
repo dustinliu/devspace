@@ -30,7 +30,7 @@ pub struct Config {
     dockerfile: Option<String>,
     #[serde(skip)]
     pub image_source: ImageSource,
-    pub post_create_command: Option<String>,
+    pub post_create_command: Option<Vec<String>>,
 }
 
 impl Config {
@@ -68,7 +68,7 @@ fn normalize_config(mut config: Config) -> Result<Config> {
     Ok(config)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Project {
     pub root: PathBuf,
     pub config_dir: PathBuf,
@@ -96,14 +96,31 @@ impl Project {
             config,
         })
     }
+}
 
-    pub fn from<P: Into<PathBuf>>(root: P) -> Result<Self> {
-        let root = root.into();
+impl TryFrom<&PathBuf> for Project {
+    type Error = anyhow::Error;
+
+    fn try_from(root: &PathBuf) -> Result<Self> {
         let c = root.join(CONFIG_DIR).join(CONFIG_FILE);
         let f = std::fs::File::open(&c)
             .with_context(|| format!("failed to open config file {:?}", &c))?;
         let config = Config::new(f)?;
         Project::new(root, config)
+    }
+}
+
+impl TryFrom<&str> for Project {
+    type Error = anyhow::Error;
+
+    fn try_from(root: &str) -> Result<Self> {
+        Project::try_from(&PathBuf::from(root))
+    }
+}
+
+impl AsRef<Project> for Project {
+    fn as_ref(&self) -> &Project {
+        self
     }
 }
 
@@ -119,8 +136,6 @@ fn get_project_name(root: &PathBuf) -> Result<String> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::io::Write;
-
     use super::*;
     use tempfile::TempDir;
 
@@ -130,7 +145,7 @@ pub mod tests {
         {
             "name": "test",
             "dockerFile": "Dockerfile",
-            "postCreateCommand": "echo 'hello'"
+            "postCreateCommand": ["echo", "hello"]
         }"#;
 
         let config = Config::new(json.as_bytes()).unwrap();
@@ -144,7 +159,7 @@ pub mod tests {
                     .to_string()
             )
         );
-        assert_eq!(config.post_create_command.unwrap(), "echo 'hello'");
+        assert_eq!(config.post_create_command.unwrap(), ["echo", "hello"]);
     }
 
     #[test]
@@ -153,7 +168,7 @@ pub mod tests {
         {
             //test
             "image": "test image",
-            "postCreateCommand": "echo 'hello'",
+            "postCreateCommand": ["echo", "hello"],
         }"#;
 
         let config = Config::new(json.as_bytes()).unwrap();
@@ -171,7 +186,7 @@ pub mod tests {
         {
         f
             "dockerFile": "Dockerfile",
-            "postCreateCommand": "echo 'hello'"
+            "postCreateCommand": ["echo", "hello"],
         }"#;
 
         Config::new(json.as_bytes()).unwrap();
@@ -183,7 +198,7 @@ pub mod tests {
         {
             "image": "test",
             "dockerFile": "Dockerfile",
-            "postCreateCommand": "echo 'hello'"
+            "postCreateCommand": ["echo", "hello"],
         }"#;
         let config = normalize_config(Config::new(json.as_bytes()).unwrap()).unwrap();
         assert_eq!(config.image_source, ImageSource::Image("test".to_string()));
@@ -194,7 +209,7 @@ pub mod tests {
     fn test_invalidate_config_without_dockfile_image() {
         let json = r#"
         {
-            "postCreateCommand": "echo 'hello'"
+            "postCreateCommand": ["echo", "hello"],
         }"#;
         normalize_config(Config::new(json.as_bytes()).unwrap()).unwrap();
     }
@@ -203,11 +218,11 @@ pub mod tests {
     fn test_project_name_from_path() {
         let json = r#"
         {
-            "postCreateCommand": "echo 'hello'"
+            "postCreateCommand": ["echo", "hello"],
             "image": "test"
         }"#;
         let tmp_project = TmpProjectDir::new("xxxx xxx").devcontainer_json(json.as_bytes());
-        let project = Project::from(tmp_project.root).unwrap();
+        let project = Project::try_from(&tmp_project.root).unwrap();
         assert_eq!(project.name, "xxxx_xxx");
     }
 
@@ -216,19 +231,18 @@ pub mod tests {
         let json = r#"
         {
             "name": "taskcommander dev",
-            "postCreateCommand": "echo 'hello'"
+            "postCreateCommand": ["echo", "hello"],
             "image": "test"
         }"#;
 
         let tmp_project = TmpProjectDir::new("xxxx").devcontainer_json(json.as_bytes());
-        let project = Project::from(tmp_project.root).unwrap();
+        let project = Project::try_from(&tmp_project.root).unwrap();
         assert_eq!(project.name, "taskcommander_dev");
     }
 
-    #[allow(dead_code)]
     pub struct TmpProjectDir {
         pub name: String,
-        tmpdir: TempDir,
+        _tmpdir: TempDir,
         pub root: PathBuf,
     }
 
@@ -240,20 +254,20 @@ pub mod tests {
 
             Self {
                 name: name.to_string(),
-                tmpdir,
+                _tmpdir: tmpdir,
                 root,
             }
         }
 
-        pub fn dockerfile(self, name: &str, mut content: impl std::io::Read) -> Self {
-            let mut buffer = Vec::new();
-            content.read_to_end(&mut buffer).unwrap();
-            let mut f = std::fs::File::create(self.root.join(CONFIG_DIR).join(name)).unwrap();
-            f.write_all(&buffer).unwrap();
-            self
-        }
+        // pub fn dockerfile(self, name: &str, mut content: impl std::io::Read) -> Self {
+        //     let mut buffer = Vec::new();
+        //     content.read_to_end(&mut buffer).unwrap();
+        //     let mut f = std::fs::File::create(self.root.join(CONFIG_DIR).join(name)).unwrap();
+        //     f.write_all(&buffer).unwrap();
+        //     self
+        // }
 
-        pub fn devcontainer_json(self, mut content: impl AsRef<[u8]>) -> Self {
+        pub fn devcontainer_json(self, content: impl AsRef<[u8]>) -> Self {
             std::fs::write(self.root.join(CONFIG_DIR).join(CONFIG_FILE), content).unwrap();
             self
         }

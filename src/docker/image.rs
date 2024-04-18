@@ -1,16 +1,34 @@
-use crate::project::{ImageSource, Project};
-use anyhow::Result;
+use crate::{docker::client::DockerClient, project::ImageSource};
+use anyhow::{anyhow, Result};
 use bollard::models::ImageSummary;
-
-use super::client::DockerClient;
 
 pub trait Image {
     fn name(&self) -> &str;
-    fn is_existing(&self) -> bool;
+    fn existing(&self) -> bool;
+    fn build(&mut self, client: &dyn DockerClient) -> Result<()>;
 }
 
-trait BuildableImage {
-    fn build(&self, client: &impl DockerClient) -> Result<()>;
+pub fn new_image(
+    project_name: &str,
+    source: &ImageSource,
+    client: &dyn DockerClient,
+) -> Result<Box<dyn Image>> {
+    match source {
+        ImageSource::Image(name) => Ok(Box::new(ForeignImage {
+            name: name.to_owned(),
+        })),
+        ImageSource::Dockerfile(dockerfile) => {
+            let images = client.list_images(project_name)?;
+            let name = format!("{}:latest", project_name);
+            let summary = images.iter().find(|i| i.repo_tags.contains(&name));
+
+            Ok(Box::new(DockrefileImage {
+                project_name: project_name.to_string(),
+                dockerfile: dockerfile.to_string(),
+                summary: summary.cloned(),
+            }))
+        }
+    }
 }
 
 struct ForeignImage {
@@ -22,8 +40,12 @@ impl Image for ForeignImage {
         &self.name
     }
 
-    fn is_existing(&self) -> bool {
+    fn existing(&self) -> bool {
         true
+    }
+
+    fn build(&mut self, _: &dyn DockerClient) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -38,76 +60,31 @@ impl Image for DockrefileImage {
         &self.project_name
     }
 
-    fn is_existing(&self) -> bool {
+    fn existing(&self) -> bool {
         self.summary.is_some()
     }
-}
 
-impl BuildableImage for DockrefileImage {
-    fn build(&self, client: &impl DockerClient) -> Result<()> {
-        client.build_image(&self.project_name, &self.dockerfile)
-    }
-}
+    fn build(&mut self, client: &dyn DockerClient) -> Result<()> {
+        client.build_image(&self.project_name, &self.dockerfile)?;
+        let summaries = client.list_images(&self.project_name)?;
+        let tag = format!("{}:latest", self.project_name);
+        self.summary = summaries.into_iter().find(|i| i.repo_tags.contains(&tag));
 
-pub trait Imagefactory {
-    fn get_image(&self, project: &Project) -> Result<Box<dyn Image>>;
-}
-
-pub fn new_factory() -> Result<Box<dyn Imagefactory>> {
-    Ok(Box::new(ImageFactoryImpl {
-        client: crate::docker::client::new_client()?,
-    }))
-}
-
-struct ImageFactoryImpl {
-    client: Box<dyn DockerClient>,
-}
-
-impl ImageFactoryImpl {
-    fn load_dockerfile_image(
-        &self,
-        project_name: &str,
-        dockerfile: &str,
-    ) -> Result<Box<dyn Image>> {
-        let images = self.client.list_images(project_name)?;
-        let name = format!("{}:latest", project_name);
-        let summary = images.iter().find(|i| i.repo_tags.contains(&name));
-
-        Ok(Box::new(DockrefileImage {
-            project_name: project_name.to_string(),
-            dockerfile: dockerfile.to_string(),
-            summary: summary.cloned(),
-        }))
-    }
-}
-
-impl Imagefactory for ImageFactoryImpl {
-    fn get_image(&self, project: &Project) -> Result<Box<dyn Image>> {
-        match &project.config.image_source {
-            ImageSource::Image(name) => Ok(Box::new(ForeignImage {
-                name: name.to_owned(),
-            })),
-            ImageSource::Dockerfile(dockerfile) => {
-                self.load_dockerfile_image(&project.name, dockerfile)
-            }
+        if self.summary.is_none() {
+            return Err(anyhow!("Image not found after build"));
         }
-    }
-}
 
-mod buildable {
-    use super::*;
-    use crate::docker::client::DockerClient;
-    use anyhow::Result;
-
-    trait BuildableImage: Image {
-        fn build(&self, client: &impl DockerClient) -> Result<()>;
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{docker::client::MockDockerClient, project::tests::TmpProjectDir};
+    use crate::{
+        docker::client::tests::MockDockerClient,
+        project::{tests::TmpProjectDir, Project},
+    };
 
     #[test]
     fn test_foreign_image() {
@@ -116,49 +93,44 @@ mod tests {
             "name": "aaa",
             "image": "testimage:latest"
         }"#;
-        let root = TmpProjectDir::new(json).devcontainer_json(json);
-        let project = Project::from(root.root).unwrap();
+        let tmp_project_dir = TmpProjectDir::new(json).devcontainer_json(json);
+        let project = Project::try_from(&tmp_project_dir.root).unwrap();
+        let client = MockDockerClient::new();
 
-        let mock_client = MockDockerClient::new();
-        let factory = ImageFactoryImpl {
-            client: Box::new(mock_client),
-        };
-
-        let image = factory.get_image(&project).unwrap();
-        assert!(image.is_existing());
+        let image: Box<dyn Image> =
+            new_image(&project.name, &project.config.image_source, &client).unwrap();
+        assert!(image.existing());
         assert_eq!(image.name(), "testimage:latest");
     }
 
     #[test]
-    fn teset_dockerfile_image_not_existing() {
+    fn test_dockerfile_image_not_existing() {
         let json = r#"
         {
             "name": "aaa",
             "dockerFile": "Dockerfile.test"
         }"#;
-        let root = TmpProjectDir::new(json).devcontainer_json(json);
-        let project = Project::from(root.root).unwrap();
+        let tmp_project_dir = TmpProjectDir::new(json).devcontainer_json(json);
+        let project = Project::try_from(&tmp_project_dir.root).unwrap();
 
         let mut mock_client = MockDockerClient::new();
         mock_client.expect_list_images().returning(|_| Ok(vec![]));
-        let factory = ImageFactoryImpl {
-            client: Box::new(mock_client),
-        };
 
-        let image = factory.get_image(&project).unwrap();
-        assert!(!image.is_existing());
+        let image: Box<dyn Image> =
+            new_image(&project.name, &project.config.image_source, &mock_client).unwrap();
+        assert!(!image.existing());
         assert_eq!(image.name(), "aaa");
     }
 
     #[test]
-    fn teset_dockerfile_image_existing() {
+    fn test_dockerfile_image_existing() {
         let json = r#"
         {
             "name": "bbb",
             "dockerFile": "Dockerfile.test2"
         }"#;
-        let root = TmpProjectDir::new("yyyy").devcontainer_json(json);
-        let project = Project::from(root.root).unwrap();
+        let tmp_project_dir = TmpProjectDir::new("yyyy").devcontainer_json(json);
+        let project = Project::try_from(&tmp_project_dir.root).unwrap();
 
         let mut mock_client = MockDockerClient::new();
         mock_client.expect_list_images().returning(|_| {
@@ -167,12 +139,10 @@ mod tests {
                 ..Default::default()
             }])
         });
-        let factory = ImageFactoryImpl {
-            client: Box::new(mock_client),
-        };
 
-        let image = factory.get_image(&project).unwrap();
-        assert!(image.is_existing());
+        let image: Box<dyn Image> =
+            new_image(&project.name, &project.config.image_source, &mock_client).unwrap();
+        assert!(image.existing());
         assert_eq!(image.name(), "bbb");
     }
 }

@@ -1,0 +1,5 @@
+{
+  "name": "devspace dev",
+  "dockerFile": "Dockerfile",
+  "shell": "/bin/zsh"
+}

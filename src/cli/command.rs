@@ -1,18 +1,20 @@
-use crate::{docker::DockerFactory, project::Project};
+use crate::{docker::Container, project::Project};
 use anyhow::Result;
 
 pub fn shell(root: &str) -> Result<()> {
-    let project = Project::from(root)?;
-    let factory = DockerFactory::new()?;
-    let container = factory.get_container(project.name.as_str())?;
+    let project = Project::try_from(root)?;
+    let container: Container = Container::try_from(&project)?;
 
-    if !container.existing() {}
+    if !container.existing() {
+        container.setup()?;
+    } else if !container.running() {
+        container.start()?;
+    }
+
+    container.exec(&["/bin/zsh"])?;
 
     Ok(())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::project::tests::TmpProjectDir;
-}
+mod tests {}
