@@ -1,7 +1,7 @@
 use crate::docker::process;
 use anyhow::{Context, Result};
 use bollard::{
-    container::{ListContainersOptions, StartContainerOptions},
+    container::{ListContainersOptions, StartContainerOptions, StopContainerOptions},
     image::ListImagesOptions,
     models::{ContainerSummary, ImageSummary},
     Docker,
@@ -16,6 +16,7 @@ pub trait DockerClient {
     fn list_images(&self, project_name: &str) -> Result<Vec<ImageSummary>>;
     fn build_image(&self, project_name: &str, dockerfile: &str) -> Result<()>;
     fn start_container(&self, name: &str) -> Result<()>;
+    fn stop_container(&self, name: &str) -> Result<()>;
     fn run(&self, name: &str, image_name: &str, deattach: bool, args: Vec<&str>) -> Result<()>;
     fn exec(&self, contain_name: &str, cmd: &[&str]) -> Result<()>;
 }
@@ -76,6 +77,14 @@ impl DockerClient for DockerClientImpl {
         runtime
             .block_on(self.client.start_container(name, Some(options)))
             .context("can not start container")
+    }
+
+    fn stop_container(&self, name: &str) -> Result<()> {
+        let runtime = Builder::new_current_thread().enable_all().build()?;
+        let options: StopContainerOptions = Default::default();
+        runtime
+            .block_on(self.client.stop_container(name, Some(options)))
+            .context("can not stop container")
     }
 
     fn run(&self, name: &str, image_name: &str, deattach: bool, args: Vec<&str>) -> Result<()> {
@@ -272,6 +281,7 @@ pub mod tests {
             fn list_images(&self, project_name: &str) -> Result<Vec<ImageSummary>>;
             fn build_image(&self, project_name: &str, dockerfile: &str) -> Result<()>;
             fn start_container(&self, name: &str) -> Result<()>;
+            fn stop_container(&self, name: &str) -> Result<()>;
             fn run<'a>(&self, name: &str, image_name: &str, deattach: bool, args: Vec<&'a str>) -> Result<()>;
             fn exec<'a>(&self, contain_name: &str, cmd: &[&'a str]) -> Result<()>;
         }

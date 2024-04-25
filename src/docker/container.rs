@@ -55,6 +55,7 @@ impl<'a> Container<'a> {
             new_image(self.name, &self.config.image_source, self.client.as_ref())?;
 
         if !image.existing() {
+            println!("image does not exist, building...");
             image.build(self.client.as_ref())?;
         }
 
@@ -62,6 +63,7 @@ impl<'a> Container<'a> {
             .run(self.name, image.name(), true, vec!["sleep", "infinity"])?;
 
         if let Some(command) = &self.config.post_create_command {
+            println!("running post-create command...");
             let c = command.iter().map(|s| s.as_str()).collect::<Vec<_>>();
             self.client.exec(self.name, &c)?;
         }
@@ -75,6 +77,10 @@ impl<'a> Container<'a> {
 
     pub fn start(&self) -> Result<()> {
         self.client.start_container(self.name)
+    }
+
+    pub fn stop(&self) -> Result<()> {
+        self.client.stop_container(self.name)
     }
 }
 
